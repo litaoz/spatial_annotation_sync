@@ -19,6 +19,7 @@ pub struct SpatialAnnotation {
 }
 
 impl SpatialAnnotation {
+    #[must_use]
     pub const fn new(id: Option<AnnotationId>, coord: Point, text: String) -> Self {
         Self {id, coord, text}
     }
@@ -30,6 +31,7 @@ pub struct SpatialEnvironment {
 }
 
 impl SpatialEnvironment {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             user: UserId(Uuid::new_v4()),
@@ -37,10 +39,12 @@ impl SpatialEnvironment {
         }
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -66,6 +70,7 @@ mod tests {
     #[test]
     fn test_create_annotation() {
         let mut env = SpatialEnvironment::new();
+        assert!(env.is_empty());
         let a1 = SpatialAnnotation{
             id: None,
             coord: Point(0, 0),
