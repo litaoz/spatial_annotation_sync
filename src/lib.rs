@@ -4,32 +4,35 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use models::SpatialAnnotationInternal;
 
-// pub struct UserId(pub Uuid);
-// pub struct AnnotationId(pub Uuid);
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Hash)]
+pub struct UserId(pub Uuid);
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Hash)]
+pub struct AnnotationId(pub Uuid);
 
 pub struct Point(pub i32, pub i32);
 
 pub struct SpatialAnnotation {
-    pub id: Option<Uuid>,
+    pub id: Option<AnnotationId>,
     pub coord: Point,
     pub text: String,
 }
 
 impl SpatialAnnotation {
-    pub const fn new(id: Option<Uuid>, coord: Point, text: String) -> Self {
+    pub const fn new(id: Option<AnnotationId>, coord: Point, text: String) -> Self {
         Self {id, coord, text}
     }
 }
 
 pub struct SpatialEnvironment {
-    user: Uuid,
-    data: HashMap<Uuid, SpatialAnnotationInternal>
+    user: UserId,
+    data: HashMap<AnnotationId, SpatialAnnotationInternal>
 }
 
 impl SpatialEnvironment {
     pub fn new() -> Self {
         Self {
-            user: Uuid::new_v4(),
+            user: UserId(Uuid::new_v4()),
             data: HashMap::new()
         }
     }
@@ -42,7 +45,7 @@ impl SpatialEnvironment {
         self.data.is_empty()
     }
 
-    pub fn create_annotation(&mut self, annotation: SpatialAnnotation) -> Uuid {
+    pub fn create_annotation(&mut self, annotation: SpatialAnnotation) -> AnnotationId {
         let annotation = SpatialAnnotationInternal::new(annotation, self.user);
         let id = annotation.id;
         self.data.insert(id, annotation);
