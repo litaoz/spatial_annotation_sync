@@ -16,7 +16,7 @@ pub struct SpatialAnnotation {
 }
 
 impl SpatialAnnotation {
-    pub fn new(id: Option<Uuid>, coord: Point, text: String) -> Self {
+    pub const fn new(id: Option<Uuid>, coord: Point, text: String) -> Self {
         Self {id, coord, text}
     }
 }
@@ -38,11 +38,21 @@ impl SpatialEnvironment {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     pub fn create_annotation(&mut self, annotation: SpatialAnnotation) -> Uuid {
         let annotation = SpatialAnnotationInternal::new(annotation, self.user);
         let id = annotation.id;
         self.data.insert(id, annotation);
         id
+    }
+}
+
+impl Default for SpatialEnvironment {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
