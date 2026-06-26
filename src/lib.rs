@@ -1,46 +1,23 @@
-use std::collections::HashMap;
+mod models;
 
+use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{Utc, DateTime};
+use models::SpatialAnnotationInternal;
+
+// pub struct UserId(pub Uuid);
+// pub struct AnnotationId(pub Uuid);
 
 pub struct Point(pub i32, pub i32);
 
 pub struct SpatialAnnotation {
+    pub id: Option<Uuid>,
     pub coord: Point,
     pub text: String,
 }
 
-struct LwwRegister<T> {
-    value: T,
-    last_modified_user: Uuid,
-    last_modified_time: DateTime<Utc>
-}
-
-impl<T> LwwRegister<T> {
-    fn new(value: T, user: Uuid) -> Self {
-        Self {
-            value,
-            last_modified_user: user,
-            last_modified_time: Utc::now()
-        }
-    }
-}
-
-struct SpatialAnnotationInternal {
-    id: Uuid,
-    coord: Option<LwwRegister<Point>>,
-    text: Option<LwwRegister<String>>,
-}
-
-impl SpatialAnnotationInternal {
-    fn new(value: SpatialAnnotation, user: Uuid) -> Self {
-        let coord = Some(LwwRegister::new(value.coord, user));
-        let text = Some(LwwRegister::new(value.text, user));
-        Self {
-            id: Uuid::new_v4(),
-            coord,
-            text,
-        }
+impl SpatialAnnotation {
+    pub fn new(id: Option<Uuid>, coord: Point, text: String) -> Self {
+        Self {id, coord, text}
     }
 }
 
@@ -77,10 +54,12 @@ mod tests {
     fn test_create_annotation() {
         let mut env = SpatialEnvironment::new();
         let a1 = SpatialAnnotation{
+            id: None,
             coord: Point(0, 0),
             text: String::from("Home")
         };
         let a2 = SpatialAnnotation{
+            id: None,
             coord: Point(1, 0),
             text: String::from("Neighbor 1")
         };
@@ -91,6 +70,18 @@ mod tests {
 
     #[test]
     fn test_read_annotation() {
+        // let mut env = SpatialEnvironment::new();
+        // let a1 = SpatialAnnotation{
+        //     coord: Point(0, 0),
+        //     text: String::from("Home")
+        // };
+        // let a1_clone = a1.clone();
+        // let a2 = SpatialAnnotation{
+        //     coord: Point(1, 0),
+        //     text: String::from("Neighbor 1")
+        // };
+        // let _a1 = env.create_annotation(a1);
+        // let _a2 = env.create_annotation(a2);
     }
 
     #[test]
