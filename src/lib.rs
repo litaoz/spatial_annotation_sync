@@ -1,8 +1,11 @@
+mod sync;
+
 use std::collections::HashMap;
 
 use uuid::Uuid;
 use chrono::{Utc, DateTime};
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Point(pub i32, pub i32);
 
 pub struct SpatialAnnotation {
@@ -10,6 +13,7 @@ pub struct SpatialAnnotation {
     pub text: String,
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct LwwRegister<T> {
     value: T,
     last_modified_user: Uuid,
@@ -26,6 +30,7 @@ impl<T> LwwRegister<T> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct SpatialAnnotationInternal {
     id: Uuid,
     coord: Option<LwwRegister<Point>>,
@@ -44,6 +49,7 @@ impl SpatialAnnotationInternal {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpatialEnvironment {
     user: Uuid,
     data: HashMap<Uuid, SpatialAnnotationInternal>
