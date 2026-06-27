@@ -4,24 +4,39 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use models::SpatialAnnotationInternal;
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd,  Hash)]
 pub struct UserId(pub Uuid);
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub struct AnnotationId(pub Uuid);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Point(pub i32, pub i32);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpatialAnnotation {
-    pub id: Option<AnnotationId>,
-    pub coord: Point,
-    pub text: String,
+    id: Option<AnnotationId>,
+    coord: Option<Point>,
+    text: Option<String>,
 }
 
 impl SpatialAnnotation {
     #[must_use]
     pub const fn new(id: Option<AnnotationId>, coord: Point, text: String) -> Self {
+        Self {id, coord: Some(coord), text: Some(text)}
+    }
+
+    const fn new_internal(id: Option<AnnotationId>, coord: Option<Point>, text: Option<String>) -> Self {
         Self {id, coord, text}
+    }
+}
+
+#[cfg(test)]
+impl SpatialAnnotation {
+    fn without_id(self) -> Self {
+        Self::new_internal(
+            None, self.coord, self.text
+        )
     }
 }
 
@@ -55,6 +70,12 @@ impl SpatialEnvironment {
         self.data.insert(id, annotation);
         id
     }
+
+    pub fn read_annotation(&self, annotation_id: AnnotationId) -> Option<SpatialAnnotation>{
+        self.data
+            .get(&annotation_id)
+            .map(From::from)
+    }
 }
 
 impl Default for SpatialEnvironment {
@@ -71,16 +92,16 @@ mod tests {
     fn test_create_annotation() {
         let mut env = SpatialEnvironment::new();
         assert!(env.is_empty());
-        let a1 = SpatialAnnotation{
-            id: None,
-            coord: Point(0, 0),
-            text: String::from("Home")
-        };
-        let a2 = SpatialAnnotation{
-            id: None,
-            coord: Point(1, 0),
-            text: String::from("Neighbor 1")
-        };
+        let a1 = SpatialAnnotation::new(
+            None,
+            Point(0, 0),
+            String::from("Home")
+        );
+        let a2 = SpatialAnnotation::new(
+            None,
+            Point(1, 0),
+            String::from("Neighbor 1")
+        );
         let _a1 = env.create_annotation(a1);
         let _a2 = env.create_annotation(a2);
         assert_eq!(env.len(), 2);
@@ -88,18 +109,19 @@ mod tests {
 
     #[test]
     fn test_read_annotation() {
-        // let mut env = SpatialEnvironment::new();
-        // let a1 = SpatialAnnotation{
-        //     coord: Point(0, 0),
-        //     text: String::from("Home")
-        // };
-        // let a1_clone = a1.clone();
-        // let a2 = SpatialAnnotation{
-        //     coord: Point(1, 0),
-        //     text: String::from("Neighbor 1")
-        // };
-        // let _a1 = env.create_annotation(a1);
-        // let _a2 = env.create_annotation(a2);
+        let mut env = SpatialEnvironment::new();
+        let a1 = SpatialAnnotation::new(
+            None,
+            Point(0, 0),
+            String::from("Home")
+        );
+        let a1_clone = a1.clone();
+
+        let a1_id = env.create_annotation(a1);
+        let a1 = env.read_annotation(a1_id)
+            .expect("read_annotation should return an existing id")
+            .without_id();
+        assert_eq!(a1, a1_clone);
     }
 
     #[test]
