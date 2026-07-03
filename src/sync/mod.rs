@@ -1,14 +1,14 @@
 use tokio::{io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt}};
-use anyhow::Result;
+use anyhow::{Context, Result};
 
-use super::SpatialEnvironment;
+use crate::crdt::SpatialEnvironment;
 
 pub struct PeerConnection<S> {
     stream: S
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
-    pub fn new(stream: S) -> Self {
+    pub const fn new(stream: S) -> Self {
         Self { stream }
     }
 
@@ -16,7 +16,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
         // currently sending whole env,
         // in the future could be just an annotation
         let bytes = serde_json::to_vec(env)?;
-        let len = bytes.len() as u32;
+        let len = u32::try_from(bytes.len())
+            .context("serialized spatial environment exceeds u32::MAX bytes")?;
         self.stream.write_all(&len.to_be_bytes()).await?;
         self.stream.write_all(&bytes).await?;
         Ok(())
@@ -38,7 +39,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{Point, SpatialAnnotation};
+    use crate::crdt::{Point, SpatialAnnotation};
 
     use super::*;
 
@@ -50,10 +51,11 @@ mod tests {
 
         let mut env = SpatialEnvironment::new();
         env.create_annotation(
-            SpatialAnnotation{
-                coord: Point(1, 2),
-                text: String::from("hello world")
-            }
+            SpatialAnnotation::new(
+                None,
+                Point(1, 2),
+                String::from("hello world")
+            )
         );
         // let annotation = SpatialAnnotationInternal::new(
         //     SpatialAnnotation{

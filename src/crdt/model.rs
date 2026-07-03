@@ -3,7 +3,7 @@ use chrono::{Utc, DateTime};
 
 use super::{Point, SpatialAnnotation, UserId, AnnotationId};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct LwwRegister<T> {
     value: T,
     last_modified_user: UserId,
@@ -45,7 +45,7 @@ impl<T: Clone + PartialEq> LwwRegister<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpatialAnnotationInternal {
     pub id: AnnotationId,
     coord: LwwRegister<Option<Point>>,
