@@ -199,9 +199,84 @@ mod tests {
 
     #[test]
     fn test_merge() {
-        let _env_left = SpatialEnvironment::new();
-        let _env_right = SpatialEnvironment::new();
+        let mut env_left = SpatialEnvironment::new();
+        let mut env_right = SpatialEnvironment::new();
 
+        let shared_id = AnnotationId(Uuid::from_u128(1));
+        let left_only_id = AnnotationId(Uuid::from_u128(2));
+        let right_only_id = AnnotationId(Uuid::from_u128(3));
+
+        let earlier = Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            .single()
+            .expect("A valid UTC datetime");
+        let later = Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 1)
+            .single()
+            .expect("A valid UTC datetime");
+
+        env_left.create_annotation_with_datetime(
+            SpatialAnnotation::new(
+                Some(shared_id),
+                Point(0, 0),
+                String::from("left-shared")
+            ),
+            earlier
+        );
+        env_left.create_annotation_with_datetime(
+            SpatialAnnotation::new(
+                Some(left_only_id),
+                Point(1, 1),
+                String::from("left-only")
+            ),
+            earlier
+        );
+
+        env_right.create_annotation_with_datetime(
+            SpatialAnnotation::new(
+                Some(shared_id),
+                Point(5, 5),
+                String::from("right-shared")
+            ),
+            later
+        );
+        env_right.create_annotation_with_datetime(
+            SpatialAnnotation::new(
+                Some(right_only_id),
+                Point(9, 9),
+                String::from("right-only")
+            ),
+            later
+        );
+
+        env_left.merge(env_right);
+
+        assert_eq!(env_left.len(), 3);
+
+        assert_eq!(
+            env_left.read_annotation(shared_id),
+            Some(SpatialAnnotation::new(
+                Some(shared_id),
+                Point(5, 5),
+                String::from("right-shared")
+            ))
+        );
+        assert_eq!(
+            env_left.read_annotation(left_only_id),
+            Some(SpatialAnnotation::new(
+                Some(left_only_id),
+                Point(1, 1),
+                String::from("left-only")
+            ))
+        );
+        assert_eq!(
+            env_left.read_annotation(right_only_id),
+            Some(SpatialAnnotation::new(
+                Some(right_only_id),
+                Point(9, 9),
+                String::from("right-only")
+            ))
+        );
     }
 
 }

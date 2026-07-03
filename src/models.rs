@@ -53,16 +53,6 @@ pub struct SpatialAnnotationInternal {
 }
 
 impl SpatialAnnotationInternal {
-    // pub fn new(value: SpatialAnnotation, user: UserId) -> Self {
-    //     let coord = LwwRegister::new(value.coord, user);
-    //     let text = LwwRegister::new(value.text, user);
-    //     Self {
-    //         id: AnnotationId(Uuid::new_v4()),
-    //         coord,
-    //         text,
-    //     }
-    // }
-
     pub(super) fn new(value: SpatialAnnotation, user: UserId, datetime: DateTime<Utc>) -> Self {
         let id = value.id
             .unwrap_or_else(|| AnnotationId(Uuid::new_v4()));
