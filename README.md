@@ -17,7 +17,7 @@ Users can create, edit, and delete spatial annotations. Each annotation has:
 - A unique ID
 - Spatial coordinates (x, y, z)
 - Text content
-- A LWW-Element-Set CRDT representation of its state
+- An LWW register-based CRDT representation of its state
 
 ### 2. Offline Editing
 Each client can create, edit, and delete annotations independently with no network connection. Changes are tracked locally and queued for sync.
@@ -37,7 +37,7 @@ Alice deletes an annotation at T=10 while Bob edits the same annotation at T=8, 
 
 ## Scope & Constraints
 ### In Scope
-- LWW-Element-Set CRDT for all annotation state (coordinates, content, existence)
+- LWW register-based CRDT for annotation state (coordinates, content)
 - Last Write Wins conflict resolution across all fields, including deletes
 - Two-peer sync over plain TCP on localhost
 - In-memory state only (no disk persistence)
