@@ -57,13 +57,7 @@ mod tests {
                 String::from("hello world")
             )
         );
-        // let annotation = SpatialAnnotationInternal::new(
-        //     SpatialAnnotation{
-        //         coord: Point(1, 2),
-        //         text: String::from("hello world")
-        //     },
-        //     Uuid::new_v4()
-        // );
+
         let _ = sender.send(&env).await.expect(
             "PeerConnection send should succeed"
         );

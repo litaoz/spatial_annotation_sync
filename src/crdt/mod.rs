@@ -115,6 +115,13 @@ impl SpatialEnvironment {
         Some(a_clone)
     }
 
+    pub fn delete_annotation(&mut self, annotation_id: AnnotationId) -> Option<SpatialAnnotation> {
+        let mut a = self.read_annotation(annotation_id)?;
+        a.coord = None;
+        a.text = None;
+        self.update_annotation(a)
+    }
+
     pub fn merge(&mut self, other: Self) {
         // for every annotiation in the other env, merge
         for (id, incoming) in other.data {
@@ -196,6 +203,27 @@ mod tests {
 
     #[test]
     fn test_delete_annotation() {
+        let mut env = SpatialEnvironment::new();
+        let a1 = SpatialAnnotation::new(
+            None,
+            Point(0, 0),
+            String::from("Home")
+        );
+        let a1_expected = SpatialAnnotation{
+            coord: None,
+            text: None,
+            ..a1.clone()
+        };
+
+        let a1_id = env.create_annotation(a1);
+        let _ = env.delete_annotation(a1_id)
+            .expect("delete_annotation should return OK");
+        assert_eq!(env.len(), 1);
+        let a1 = env.read_annotation(a1_id)
+            .expect("read_annotation should return an existing id")
+            .without_id();
+
+        assert_eq!(a1, a1_expected);
     }
 
     #[test]
