@@ -48,6 +48,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
     }
 }
 
+pub async fn sync_peer<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut PeerConnection<S>, env: &mut SpatialEnvironment) -> Result<()> {
+    let send_result = conn.send(env).await;
+    send_result?;
+    let receive_result = conn.receive().await;
+    let remote_env = receive_result?;
+
+    env.merge(remote_env);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 
