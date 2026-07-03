@@ -1,2 +1,2 @@
 pub mod sync;
-mod crdt;
+pub mod crdt;
