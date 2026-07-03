@@ -12,6 +12,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
         Self { stream }
     }
 
+    /// Sends a serialized spatial environment over the underlying stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails, if the serialized payload is
+    /// larger than `u32::MAX`, or if writing to the stream fails.
     pub async fn send(&mut self, env: &SpatialEnvironment) -> Result<()> {
         // currently sending whole env,
         // in the future could be just an annotation
@@ -23,6 +29,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
         Ok(())
     }
 
+    /// Receives and deserializes a spatial environment from the stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading from the stream fails or if the received
+    /// payload cannot be deserialized as a spatial environment.
     pub async fn receive(&mut self) -> Result<SpatialEnvironment> {
         // currently sending whole env,
         // in the future could be just an annotation

@@ -11,11 +11,7 @@ struct LwwRegister<T> {
 }
 
 impl<T: Clone + PartialEq> LwwRegister<T> {
-    // fn new(value: T, user: UserId) -> Self {
-    //     Self::new_with_datetime(value, user, Utc::now())
-    // }
-
-    const fn new_with_datetime(value: T, user: UserId, datetime: DateTime<Utc>) -> Self {
+    const fn new(value: T, user: UserId, datetime: DateTime<Utc>) -> Self {
         Self {
             value,
             last_modified_user: user,
@@ -56,8 +52,8 @@ impl SpatialAnnotationInternal {
     pub(super) fn new(value: SpatialAnnotation, user: UserId, datetime: DateTime<Utc>) -> Self {
         let id = value.id
             .unwrap_or_else(|| AnnotationId(Uuid::new_v4()));
-        let coord = LwwRegister::new_with_datetime(value.coord, user, datetime);
-        let text = LwwRegister::new_with_datetime(value.text, user, datetime);
+        let coord = LwwRegister::new(value.coord, user, datetime);
+        let text = LwwRegister::new(value.text, user, datetime);
         Self { id, coord, text }
     }
 
@@ -140,5 +136,56 @@ mod tests {
             left.merge(right);
             assert_eq!(left, expected);
         }
+    }
+
+    #[test]
+    fn test_merge_with_empty_values() {
+        let annotation_id = Some(AnnotationId(Uuid::from_u128(1)));
+        let earlier_user = UserId(Uuid::from_u128(1));
+        let later_user = UserId(Uuid::from_u128(2));
+        let earlier_date: DateTime<Utc> = Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            .single()
+            .expect("A valid UTC datetime");
+        let later_date = earlier_date.with_second(1).expect("A valid UTC datetime");
+
+        let populated = SpatialAnnotation {
+            id: annotation_id,
+            coord: Some(Point(3, 4)),
+            text: Some(String::from("present")),
+        };
+        let empty = SpatialAnnotation {
+            id: annotation_id,
+            coord: None,
+            text: None,
+        };
+
+        let mut left = SpatialAnnotationInternal::new(
+            populated.clone(),
+            earlier_user,
+            earlier_date,
+        );
+        let right = SpatialAnnotationInternal::new(
+            empty.clone(),
+            later_user,
+            later_date,
+        );
+
+        left.merge(right);
+        assert_eq!(SpatialAnnotation::from(&left), empty);
+
+        let mut left = SpatialAnnotationInternal::new(
+            empty.clone(),
+            earlier_user,
+            earlier_date,
+        );
+        let right = SpatialAnnotationInternal::new(
+            populated.clone(),
+            later_user,
+            later_date,
+        );
+
+        left.merge(right);
+        assert_eq!(SpatialAnnotation::from(&left), populated);
     }
 }
