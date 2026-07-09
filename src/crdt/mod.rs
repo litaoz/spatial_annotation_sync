@@ -134,6 +134,7 @@ impl SpatialEnvironment {
         }
     }
 
+    #[must_use]
     pub fn has_same_data(&self, other: &Self) -> bool {
         self.data == other.data
     }
