@@ -171,4 +171,16 @@ proptest! {
 
         assert!(ab_c.has_same_data(&a_bc), "'merge(merge(a b), c)' should be the same as 'merge(a, merge(b, c)'");
     }
+
+    #[test]
+    fn idempotence(ops_a in operations_strategy()) {
+        let mut env_a = SpatialEnvironment::new();
+
+        load_env(ops_a, &mut env_a);
+
+        let mut a_a = env_a.clone();
+        a_a.merge(env_a.clone());
+
+        assert!(env_a.has_same_data(&a_a));
+    }
 }
