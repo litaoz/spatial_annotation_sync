@@ -60,7 +60,7 @@ impl SpatialAnnotation {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpatialEnvironment {
     user: UserId,
     data: HashMap<AnnotationId, SpatialAnnotationInternal>
@@ -132,6 +132,10 @@ impl SpatialEnvironment {
                 }
             }
         }
+    }
+
+    pub fn has_same_data(&self, other: &Self) -> bool {
+        self.data == other.data
     }
 }
 
@@ -228,12 +232,12 @@ mod tests {
 
     #[test]
     fn test_merge() {
-        let mut env_left = SpatialEnvironment::new();
-        let mut env_right = SpatialEnvironment::new();
+        let mut env_a = SpatialEnvironment::new();
+        let mut env_b = SpatialEnvironment::new();
 
         let shared_id = AnnotationId(Uuid::from_u128(1));
-        let left_only_id = AnnotationId(Uuid::from_u128(2));
-        let right_only_id = AnnotationId(Uuid::from_u128(3));
+        let a_only_id = AnnotationId(Uuid::from_u128(2));
+        let b_only_id = AnnotationId(Uuid::from_u128(3));
 
         let earlier = Utc
             .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
@@ -244,7 +248,7 @@ mod tests {
             .single()
             .expect("A valid UTC datetime");
 
-        env_left.create_annotation_with_datetime(
+        env_a.create_annotation_with_datetime(
             SpatialAnnotation::new(
                 Some(shared_id),
                 Point(0, 0),
@@ -252,16 +256,16 @@ mod tests {
             ),
             earlier
         );
-        env_left.create_annotation_with_datetime(
+        env_a.create_annotation_with_datetime(
             SpatialAnnotation::new(
-                Some(left_only_id),
+                Some(a_only_id),
                 Point(1, 1),
                 String::from("left-only")
             ),
             earlier
         );
 
-        env_right.create_annotation_with_datetime(
+        env_b.create_annotation_with_datetime(
             SpatialAnnotation::new(
                 Some(shared_id),
                 Point(5, 5),
@@ -269,21 +273,21 @@ mod tests {
             ),
             later
         );
-        env_right.create_annotation_with_datetime(
+        env_b.create_annotation_with_datetime(
             SpatialAnnotation::new(
-                Some(right_only_id),
+                Some(b_only_id),
                 Point(9, 9),
                 String::from("right-only")
             ),
             later
         );
 
-        env_left.merge(env_right);
+        env_a.merge(env_b);
 
-        assert_eq!(env_left.len(), 3);
+        assert_eq!(env_a.len(), 3);
 
         assert_eq!(
-            env_left.read_annotation(shared_id),
+            env_a.read_annotation(shared_id),
             Some(SpatialAnnotation::new(
                 Some(shared_id),
                 Point(5, 5),
@@ -291,21 +295,50 @@ mod tests {
             ))
         );
         assert_eq!(
-            env_left.read_annotation(left_only_id),
+            env_a.read_annotation(a_only_id),
             Some(SpatialAnnotation::new(
-                Some(left_only_id),
+                Some(a_only_id),
                 Point(1, 1),
                 String::from("left-only")
             ))
         );
         assert_eq!(
-            env_left.read_annotation(right_only_id),
+            env_a.read_annotation(b_only_id),
             Some(SpatialAnnotation::new(
-                Some(right_only_id),
+                Some(b_only_id),
                 Point(9, 9),
                 String::from("right-only")
             ))
         );
     }
 
+    #[test]
+    fn test_merge_commutativity() {
+        let mut env_a = SpatialEnvironment::new();
+        let mut env_b = SpatialEnvironment::new();
+
+        env_a.create_annotation(
+            SpatialAnnotation::new(
+                Some(AnnotationId(Uuid::from_u128(1))),
+                Point(0, 0),
+                String::from("")
+            )
+        );
+
+        env_b.create_annotation(
+            SpatialAnnotation::new(
+                Some(AnnotationId(Uuid::from_u128(1))),
+                Point(0, 0),
+                String::from("")
+            )
+        );
+
+        let mut a_b = env_a.clone();
+        a_b.merge(env_b.clone());
+
+        let mut b_a = env_b.clone();
+        b_a.merge(env_a.clone());
+
+        assert!(a_b.has_same_data(&b_a), "a merge b should be the same as b merge a");
+    }
 }

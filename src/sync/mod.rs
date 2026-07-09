@@ -48,6 +48,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PeerConnection<S> {
     }
 }
 
+/// Exchanges state with a peer and merges the received environment locally.
+///
+/// This sends `env` to the remote peer, receives the peer's environment, and
+/// then merges the remote state into `env`.
+///
+/// # Errors
+///
+/// Returns an error if sending to the peer fails or receiving/deserializing
+/// the peer environment fails.
 pub async fn sync_peer<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut PeerConnection<S>, env: &mut SpatialEnvironment) -> Result<()> {
     let send_result = conn.send(env).await;
     send_result?;
