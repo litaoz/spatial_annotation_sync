@@ -12,6 +12,12 @@ pub struct UserId(pub Uuid);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, serde::Serialize, serde::Deserialize)]
 pub struct AnnotationId(pub Uuid);
 
+impl AnnotationId {
+    pub fn new(id: u128) -> Self {
+        AnnotationId(Uuid::from_u128(id))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Point(pub i32, pub i32);
 
@@ -30,6 +36,11 @@ impl SpatialAnnotation {
 
     const fn new_internal(id: Option<AnnotationId>, coord: Option<Point>, text: Option<String>) -> Self {
         Self {id, coord, text}
+    }
+
+    #[must_use]
+    pub const fn get_id(&self) -> Option<AnnotationId> {
+        self.id
     }
 
     #[must_use]
@@ -100,6 +111,10 @@ impl SpatialEnvironment {
         self.data
             .get(&annotation_id)
             .map(From::from)
+    }
+
+    pub fn list_annotation(&self) -> Vec<SpatialAnnotation> {
+        self.data.values().take(100).map(From::from).collect()
     }
 
     pub fn update_annotation(&mut self, annotation: SpatialAnnotation) -> Option<SpatialAnnotation> {

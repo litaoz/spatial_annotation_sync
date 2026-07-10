@@ -46,7 +46,7 @@ fn fix_up_ops(peer_tag: u128, ops: Vec<Op>, annotation_parts: Vec<(Point, String
     let mut parts_iter = annotation_parts.into_iter();
     let mut selections_iter = selections.into_iter();
     let mut reuse_ids_iter = reuse_ids.into_iter();
-    let mut next_id = 0_u128;
+    let mut next_id = 1_u128;
 
     for op in ops {
         match op {
@@ -56,9 +56,10 @@ fn fix_up_ops(peer_tag: u128, ops: Vec<Op>, annotation_parts: Vec<(Point, String
                     .expect("reuse_ids should be same length as ops");
 
                 let id = match reuse_id {
-                    true => {next_id += 1; AnnotationId(Uuid::from_u128(next_id))}
+                    true => {AnnotationId(Uuid::from_u128(next_id))}
                     false => {AnnotationId(Uuid::from_u128((peer_tag as u128) << 96 | next_id as u128))}
                 };
+                next_id += 1;
 
 
                 let (coord, text) = parts_iter
