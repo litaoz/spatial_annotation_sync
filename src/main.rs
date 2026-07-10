@@ -26,25 +26,24 @@ impl FromStr for Command {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut tokens = s.split_whitespace();
+        let mut tokens = shell_words::split(s.trim()).map_err(|_| ParseError::UnmatchedQuote)?.into_iter();
         let cmd = tokens.next().ok_or(ParseError::EmptyInput)?;
-        let rest = tokens;
+        let mut rest = tokens;
 
-        match cmd {
-            "exit" => {
-                Ok(Command::Exit)
-            }
-            "list" => {
-                Ok(Command::List)
-            }
-            // "add" => {
-            //     let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-            //     let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-            //     let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+        match cmd.as_str() {
+            "exit" => { Ok(Command::Exit) }
+            "list" => { Ok(Command::List) }
+            "add" => {
+                let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
 
-            //     // TODO: replace
-            //     Ok(Command::Exit)
-            // }
+                let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                let text = text.parse().map_err(|_| ParseError::NotString)?;
+                let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
+
+                Ok(Command::Add{id, text, coord})
+            }
             _ => {
                 Err(ParseError::UnknownCommand)
             }
@@ -64,8 +63,15 @@ enum ParseError {
     #[error("Incorrect argument count")]
     IncorrectArgumentCount,
 
-    #[error("Unknown error")]
-    Unknown
+    #[error("Unmatched quote")]
+    UnmatchedQuote,
+
+    #[error("Argument should be a u128")]
+    NotU128,
+    #[error("Argument should be a String")]
+    NotString,
+    #[error("Argument should be a (x, y)")]
+    NotPointFormated,
 }
 
 fn list_command(env: &SpatialEnvironment) {
@@ -89,6 +95,16 @@ fn handle_command(env: &mut SpatialEnvironment, cmd: Command) -> Result<(), ()>{
         }
         Command::List => {
             list_command(env);
+            Ok(())
+        }
+        Command::Add { id, text, coord } => {
+            env.create_annotation(
+                SpatialAnnotation::new(
+                    Some(AnnotationId::new(id)),
+                    coord,
+                    text
+                )
+            );
             Ok(())
         }
     }

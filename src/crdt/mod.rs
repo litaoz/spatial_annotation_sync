@@ -1,8 +1,9 @@
 mod model;
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::{collections::{HashMap, hash_map::Entry}, str::FromStr};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use anyhow::{Context, Result};
 
 use self::model::SpatialAnnotationInternal;
 
@@ -20,6 +21,26 @@ impl AnnotationId {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Point(pub i32, pub i32);
+
+impl FromStr for Point {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        let inner = s
+            .strip_prefix('(')
+            .and_then(|s| s.strip_suffix(')'))
+            .with_context(|| format!("expected format (x, y), got '{s}'"))?;
+
+        let (x_str, y_str) = inner.split_once(',')
+            .with_context(|| format!("expected format (x, y), got '{s}'"))?;
+
+        let x = x_str.trim().parse::<i32>()?;
+        let y = y_str.trim().parse::<i32>()?;
+
+        Ok(Point(x, y))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpatialAnnotation {
@@ -356,5 +377,13 @@ mod tests {
         b_a.merge(env_a.clone());
 
         assert!(a_b.has_same_data(&b_a), "a merge b should be the same as b merge a");
+    }
+
+    #[test]
+    fn test_from_str_point() {
+        let s = "(1, 2)";
+        let res = Point::from_str(s).expect("Point was not parsed correctly");
+        assert_eq!(res, Point(1, 2));
+
     }
 }
