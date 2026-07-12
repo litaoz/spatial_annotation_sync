@@ -2,6 +2,7 @@ use std::{io::{self, Write}, str::FromStr};
 
 use clap::Parser;
 use thiserror::Error;
+use colored::Colorize;
 use spatial_annotation_sync::crdt::*;
 
 #[derive(Parser, Debug)]
@@ -35,14 +36,44 @@ impl FromStr for Command {
             "list" => { Ok(Command::List) }
             "add" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
                 let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
 
                 let id = id.parse().map_err(|_| ParseError::NotU128)?;
-                let text = text.parse().map_err(|_| ParseError::NotString)?;
                 let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
+                let text = text.parse().map_err(|_| ParseError::NotString)?;
 
                 Ok(Command::Add{id, text, coord})
+            }
+            "edit" => {
+                let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+
+                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                // let text = text.parse().map_err(|_| ParseError::NotString)?;
+                unimplemented!("not written yet")
+                // Edit{id: u128, text: String},
+            }
+            "move" => {
+                let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+
+                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                // let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
+                // let text = text.parse().map_err(|_| ParseError::NotString)?;
+                unimplemented!("not written yet")
+                // Move{id: u128, coord: Point},
+            }
+            "delete" => {
+                let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                unimplemented!("not written yet")
+                // Delete{id: u128},
+            }
+            "sync" => {
+                unimplemented!("not written yet")
+                // Sync{peer: String}
             }
             _ => {
                 Err(ParseError::UnknownCommand)
@@ -77,13 +108,14 @@ enum ParseError {
 fn list_command(env: &SpatialEnvironment) {
     let annotations = env.list_annotation();
     for ann in annotations {
-        let id = ann.get_id().map_or(String::from(""), |i| format!("{:?}", i));
-        let text = ann.get_text().map_or("", |s| s.as_str());
+        let id = ann.get_id().map_or(String::from(""), |i| format!("{:}", i));
         let coord = ann.get_coord().map_or(String::from(""), |i| format!("{:?}", i));
+        let text = ann.get_text().map_or("", |s| s.as_str());
 
         println!(
-            "{} {} {}",
-            id, text, coord
+            "{:7}  {:13}  {}",
+            id, coord.red(), text.blue()
+            // id, coord, text
         )
     }
 }

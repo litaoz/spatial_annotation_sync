@@ -1,5 +1,6 @@
 mod model;
 
+use core::fmt;
 use std::{collections::{HashMap, hash_map::Entry}, str::FromStr};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -16,6 +17,16 @@ pub struct AnnotationId(pub Uuid);
 impl AnnotationId {
     pub fn new(id: u128) -> Self {
         AnnotationId(Uuid::from_u128(id))
+    }
+}
+
+impl fmt::Display for AnnotationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id-{}",
+            &self.0.simple().to_string()[(32-2)..32]
+        )
     }
 }
 
