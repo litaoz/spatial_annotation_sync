@@ -30,6 +30,12 @@ impl fmt::Display for AnnotationId {
     }
 }
 
+impl From<u128> for AnnotationId {
+    fn from(value: u128) -> Self {
+        AnnotationId(Uuid::from_u128(value))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Point(pub i32, pub i32);
 

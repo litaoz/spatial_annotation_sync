@@ -1,9 +1,11 @@
-use std::{io::{self, Write}, str::FromStr};
+use std::{io::{self, Write}, str::FromStr, sync::Arc};
 
+// use anyhow::Context;
 use clap::Parser;
 use thiserror::Error;
 use colored::Colorize;
-use spatial_annotation_sync::crdt::*;
+use tokio::net::{TcpListener, TcpStream};
+use spatial_annotation_sync::{crdt::*, sync::{PeerConnection, sync_peer}};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -17,10 +19,10 @@ enum Command {
     Exit,
     List,
     Add{id: u128, text: String, coord: Point},
-    // Edit{id: u128, text: String},
-    // Move{id: u128, coord: Point},
-    // Delete{id: u128},
-    // Sync{peer: String}
+    Edit{id: u128, text: String},
+    Move{id: u128, coord: Point},
+    Delete{id: u128},
+    Sync{peer: String}
 }
 
 impl FromStr for Command {
@@ -49,31 +51,26 @@ impl FromStr for Command {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
                 let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
 
-                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
-                // let text = text.parse().map_err(|_| ParseError::NotString)?;
-                unimplemented!("not written yet")
-                // Edit{id: u128, text: String},
+                let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                let text = text.parse().map_err(|_| ParseError::NotString)?;
+                Ok(Command::Edit{id, text})
             }
             "move" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
                 let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-                let text = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
 
-                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
-                // let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
-                // let text = text.parse().map_err(|_| ParseError::NotString)?;
-                unimplemented!("not written yet")
-                // Move{id: u128, coord: Point},
+                let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
+                Ok(Command::Move{id, coord})
             }
             "delete" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-                // let id = id.parse().map_err(|_| ParseError::NotU128)?;
-                unimplemented!("not written yet")
-                // Delete{id: u128},
+                let id = id.parse().map_err(|_| ParseError::NotU128)?;
+                Ok(Command::Delete{id})
             }
             "sync" => {
-                unimplemented!("not written yet")
-                // Sync{peer: String}
+                let peer = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
+                Ok(Command::Sync{peer})
             }
             _ => {
                 Err(ParseError::UnknownCommand)
@@ -120,13 +117,15 @@ fn list_command(env: &SpatialEnvironment) {
     }
 }
 
-fn handle_command(env: &mut SpatialEnvironment, cmd: Command) -> Result<(), ()>{
+async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: Command) -> Result<(), ()>{
+    let mut env = env.lock().await;
+
     match cmd {
         Command::Exit => {
             Err(())
         }
         Command::List => {
-            list_command(env);
+            list_command(&env);
             Ok(())
         }
         Command::Add { id, text, coord } => {
@@ -139,20 +138,50 @@ fn handle_command(env: &mut SpatialEnvironment, cmd: Command) -> Result<(), ()>{
             );
             Ok(())
         }
-    }
+        Command::Edit { id, text } => {
+            let mut ann = env.read_annotation(id.into())
+                .expect("Edit should be done on existing annotations");
+            ann.update_text(Some(text));
+            env.update_annotation(ann);
+            Ok(())
+        },
+        Command::Move { id, coord } => {
+            let mut ann = env.read_annotation(id.into())
+                .expect("Move should be done on existing annotations");
+            ann.update_coord(Some(coord));
+            env.update_annotation(ann);
+            Ok(())
+        },
+        Command::Delete { id } => {
+            env.delete_annotation(id.into());
+            Ok(())
+        },
+        Command::Sync { peer } => {
+            let stream = TcpStream::connect(peer.as_str())
+                .await.map_err(|_| ())?;
+            let mut connection = PeerConnection::new(stream);
+            let res = spatial_annotation_sync::sync::sync_peer(&mut connection, &mut env).await;
+            match res {
+                Ok(_) => { () },
+                Err(e) => {println!("Error has occured: {e}"); ()},
+            }
+            Ok(())
+        },
+            }
 }
 
-fn main() {
-    // let args = Args::parse();
-    // let port = match args.peer_id {
-    //     1 => 3000,
-    //     _ => 3001
-    // };
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+    let port = match args.peer_id {
+        1 => 3000,
+        _ => 3001
+    };
 
-    // let peer_port = match args.peer_id {
-    //     1 => 3001,
-    //     _ => 3000
-    // };
+    let peer_port = match args.peer_id {
+        1 => 3001,
+        _ => 3000
+    };
 
     let mut spatial_env = SpatialEnvironment::new();
     spatial_env.create_annotation(SpatialAnnotation::new(
@@ -171,6 +200,23 @@ fn main() {
         String::from("Bed")
     ));
 
+    let mut spatial_env = Arc::new(
+        tokio::sync::Mutex::new(spatial_env));
+
+    let spatial_env_arc_clone = spatial_env.clone();
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await.expect("Error in binding port");
+    tokio::spawn( async move {
+        loop {
+            let (socket, _) = listener.accept().await.expect("TcpListener not able to accept");
+            let mut conn = PeerConnection::new(socket);
+            let mut env = spatial_env_arc_clone.lock().await;
+
+            if let Err(e) = sync_peer(&mut conn, &mut env).await {
+                eprintln!("Incoming sync failed: {e}");
+            }
+        }
+    });
+
     loop {
         let mut input = String::new();
         print!("> "); io::stdout().flush().unwrap();
@@ -178,7 +224,7 @@ fn main() {
         let cmd = Command::from_str(input.as_str());
         let res = match cmd {
             Err(error) => { println!("{}", error); Ok(())},
-            Ok(cmd) => { handle_command(&mut spatial_env, cmd) }
+            Ok(cmd) => { handle_command(&mut spatial_env, cmd).await }
         };
         match res {
             Ok(_) => {},

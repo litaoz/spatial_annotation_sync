@@ -93,7 +93,7 @@ mod tests {
             "PeerConnection send should succeed"
         );
         let received_env = receiver.receive().await.expect(
-            "PeerConnection recieve should get the environment that was sent"
+            "PeerConnection receive should get the environment that was sent"
         );
 
         assert_eq!(env, received_env);
