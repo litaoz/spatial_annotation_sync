@@ -15,8 +15,9 @@ pub struct UserId(pub Uuid);
 pub struct AnnotationId(pub Uuid);
 
 impl AnnotationId {
-    pub fn new(id: u128) -> Self {
-        AnnotationId(Uuid::from_u128(id))
+    #[must_use]
+    pub const fn new(id: u128) -> Self {
+        Self(Uuid::from_u128(id))
     }
 }
 
@@ -32,7 +33,7 @@ impl fmt::Display for AnnotationId {
 
 impl From<u128> for AnnotationId {
     fn from(value: u128) -> Self {
-        AnnotationId(Uuid::from_u128(value))
+        Self(Uuid::from_u128(value))
     }
 }
 
@@ -55,7 +56,7 @@ impl FromStr for Point {
         let x = x_str.trim().parse::<i32>()?;
         let y = y_str.trim().parse::<i32>()?;
 
-        Ok(Point(x, y))
+        Ok(Self(x, y))
     }
 }
 

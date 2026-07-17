@@ -5,7 +5,7 @@ use clap::Parser;
 use thiserror::Error;
 use colored::Colorize;
 use tokio::net::{TcpListener, TcpStream};
-use spatial_annotation_sync::{crdt::*, sync::{PeerConnection, sync_peer}};
+use spatial_annotation_sync::{crdt::{Point, SpatialEnvironment, SpatialAnnotation, AnnotationId}, sync::{PeerConnection, sync_peer}};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -34,8 +34,8 @@ impl FromStr for Command {
         let mut rest = tokens;
 
         match cmd.as_str() {
-            "exit" => { Ok(Command::Exit) }
-            "list" => { Ok(Command::List) }
+            "exit" => { Ok(Self::Exit) }
+            "list" => { Ok(Self::List) }
             "add" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
                 let coord = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
@@ -45,7 +45,7 @@ impl FromStr for Command {
                 let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
                 let text = text.parse().map_err(|_| ParseError::NotString)?;
 
-                Ok(Command::Add{id, text, coord})
+                Ok(Self::Add{id, text, coord})
             }
             "edit" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
@@ -53,7 +53,7 @@ impl FromStr for Command {
 
                 let id = id.parse().map_err(|_| ParseError::NotU128)?;
                 let text = text.parse().map_err(|_| ParseError::NotString)?;
-                Ok(Command::Edit{id, text})
+                Ok(Self::Edit{id, text})
             }
             "move" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
@@ -61,16 +61,16 @@ impl FromStr for Command {
 
                 let id = id.parse().map_err(|_| ParseError::NotU128)?;
                 let coord = coord.parse().map_err(|_| ParseError::NotPointFormated)?;
-                Ok(Command::Move{id, coord})
+                Ok(Self::Move{id, coord})
             }
             "delete" => {
                 let id = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
                 let id = id.parse().map_err(|_| ParseError::NotU128)?;
-                Ok(Command::Delete{id})
+                Ok(Self::Delete{id})
             }
             "sync" => {
                 let peer = rest.next().ok_or(ParseError::IncorrectArgumentCount)?;
-                Ok(Command::Sync{peer})
+                Ok(Self::Sync{peer})
             }
             _ => {
                 Err(ParseError::UnknownCommand)
@@ -105,15 +105,15 @@ enum ParseError {
 fn list_command(env: &SpatialEnvironment) {
     let annotations = env.list_annotation();
     for ann in annotations {
-        let id = ann.get_id().map_or(String::from(""), |i| format!("{:}", i));
-        let coord = ann.get_coord().map_or(String::from(""), |i| format!("{:?}", i));
+        let id = ann.get_id().map_or_else(String::new, |i| format!("{i}"));
+        let coord = ann.get_coord().map_or_else(String::new, |i| format!("{i:?}"));
         let text = ann.get_text().map_or("", |s| s.as_str());
 
         println!(
             "{:7}  {:13}  {}",
             id, coord.red(), text.blue()
             // id, coord, text
-        )
+        );
     }
 }
 
@@ -147,7 +147,7 @@ async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: 
                     env.update_annotation(ann);
                 },
                 None => {
-                    eprintln!("{} does not exist. Edit should be done on existing annotations", id);
+                    eprintln!("{id} does not exist. Edit should be done on existing annotations");
                 },
             }
 
@@ -162,7 +162,7 @@ async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: 
                     env.update_annotation(ann);
                 },
                 None => {
-                    println!("{} does not exist. Move should be done on existing annotations", id);
+                    println!("{id} does not exist. Move should be done on existing annotations");
                 },
             }
             Ok(())
@@ -178,11 +178,12 @@ async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: 
                 Ok(stream) => {
                     let mut connection = PeerConnection::new(stream);
                     let res = spatial_annotation_sync::sync::sync_peer(&mut connection, &mut env).await;
+                    drop(env);
                     match res {
-                        Ok(_) => {
+                        Ok(()) => {
                             println!("{}", format!("Successfully synced with {peer}").green());
                         },
-                        Err(e) => {println!("Error has occured: {e}"); ()},
+                        Err(e) => {println!("Error has occured: {e}");},
                     }
                 },
                 Err(err) => {
@@ -224,11 +225,11 @@ async fn main() {
         String::from("Bed")
     ));
 
-    let mut spatial_env = Arc::new(
+    let spatial_env = Arc::new(
         tokio::sync::Mutex::new(spatial_env));
 
     let spatial_env_arc_clone = spatial_env.clone();
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await.expect("Error in binding port");
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await.expect("Error in binding port");
     tokio::spawn( async move {
         loop {
             let (socket, _) = listener.accept().await.expect("TcpListener not able to accept");
@@ -247,12 +248,12 @@ async fn main() {
         io::stdin().read_line(&mut input).unwrap();
         let cmd = Command::from_str(input.as_str());
         let res = match cmd {
-            Err(error) => { println!("{}", error); Ok(())},
-            Ok(cmd) => { handle_command(&mut spatial_env, cmd).await }
+            Err(error) => { println!("{error}"); Ok(())},
+            Ok(cmd) => { handle_command(&spatial_env, cmd).await }
         };
         match res {
-            Ok(_) => {},
-            Err(_) => {break}
+            Ok(()) => {},
+            Err(()) => {break}
         }
     }
 }
