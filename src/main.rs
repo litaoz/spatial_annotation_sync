@@ -139,17 +139,32 @@ async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: 
             Ok(())
         }
         Command::Edit { id, text } => {
-            let mut ann = env.read_annotation(id.into())
-                .expect("Edit should be done on existing annotations");
-            ann.update_text(Some(text));
-            env.update_annotation(ann);
+            let ann = env.read_annotation(id.into());
+                // .expect("Edit should be done on existing annotations");
+            match ann {
+                Some(mut ann) => {
+                    ann.update_text(Some(text));
+                    env.update_annotation(ann);
+                },
+                None => {
+                    eprintln!("{} does not exist. Edit should be done on existing annotations", id);
+                },
+            }
+
             Ok(())
         },
         Command::Move { id, coord } => {
-            let mut ann = env.read_annotation(id.into())
-                .expect("Move should be done on existing annotations");
-            ann.update_coord(Some(coord));
-            env.update_annotation(ann);
+            let ann = env.read_annotation(id.into());
+                // .expect("Move should be done on existing annotations");
+            match ann {
+                Some(mut ann) => {
+                    ann.update_coord(Some(coord));
+                    env.update_annotation(ann);
+                },
+                None => {
+                    println!("{} does not exist. Move should be done on existing annotations", id);
+                },
+            }
             Ok(())
         },
         Command::Delete { id } => {
@@ -158,12 +173,21 @@ async fn handle_command(env: &Arc<tokio::sync::Mutex<SpatialEnvironment>>, cmd: 
         },
         Command::Sync { peer } => {
             let stream = TcpStream::connect(peer.as_str())
-                .await.map_err(|_| ())?;
-            let mut connection = PeerConnection::new(stream);
-            let res = spatial_annotation_sync::sync::sync_peer(&mut connection, &mut env).await;
-            match res {
-                Ok(_) => { () },
-                Err(e) => {println!("Error has occured: {e}"); ()},
+                .await;
+            match stream {
+                Ok(stream) => {
+                    let mut connection = PeerConnection::new(stream);
+                    let res = spatial_annotation_sync::sync::sync_peer(&mut connection, &mut env).await;
+                    match res {
+                        Ok(_) => {
+                            println!("{}", format!("Successfully synced with {peer}").green());
+                        },
+                        Err(e) => {println!("Error has occured: {e}"); ()},
+                    }
+                },
+                Err(err) => {
+                    println!("Could not connect to peer {peer}: {err}");
+                },
             }
             Ok(())
         },
@@ -178,10 +202,10 @@ async fn main() {
         _ => 3001
     };
 
-    let peer_port = match args.peer_id {
-        1 => 3001,
-        _ => 3000
-    };
+    // let peer_port = match args.peer_id {
+    //     1 => 3001,
+    //     _ => 3000
+    // };
 
     let mut spatial_env = SpatialEnvironment::new();
     spatial_env.create_annotation(SpatialAnnotation::new(
