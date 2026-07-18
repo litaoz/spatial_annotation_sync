@@ -1,58 +1,88 @@
-# Product Requirements Document: Collaborative Spatial Annotation Sync Library
+# Spatial Annotation Sync
 
-## Problem Statement
-Building collaborative AR applications requires a data layer that can handle concurrent edits to shared spatial content — even when users are offline. This project solves the core synchronization problem: how do two clients independently edit the same spatial annotations and converge to the same state when they reconnect, without a server arbitrating conflicts?
+[![Rust](https://github.com/litaoz/spatial_annotation_sync/actions/workflows/rust.yml/badge.svg)](https://github.com/litaoz/spatial_annotation_sync/actions/workflows/rust.yml)
 
-The intended audience is developers who would build on top of this as a library, with a CLI demo as the proof-of-concept interface.
+A CRDT-based sync library — with a CLI demo — for collaborative AR annotations. Two peers can edit the same spatial annotations while offline, reconnect over localhost, and deterministically converge to the same state with no server arbitrating conflicts.
 
-## Goals & Success Criteria
-- A working sync demo: two separate processes communicate over localhost, make conflicting edits while "offline," reconnect, and converge to identical state
-- A clear README explaining the AR use case and how to run the demo
-- A gif demonstrating the sync operation end-to-end
-- Property-based tests (via proptest) that assert convergence under arbitrary operation orderings — the mathematical proof of correctness
+## Why
 
-## Core Features
-### 1. Annotation CRUD
-Users can create, edit, and delete spatial annotations. Each annotation has:
-- A unique ID
-- Spatial coordinates (x, y, z)
-- Text content
-- An LWW register-based CRDT representation of its state
+Collaborative AR apps need a data layer that keeps working when a client is offline and can't wait for a server round-trip. This project is a minimal proof of concept for that problem: a `SpatialAnnotation` (id, coordinate, text) modeled as an LWW-register-based CRDT map, synced peer-to-peer over TCP, with a CLI you can drive by hand to watch two independent clients converge.
 
-### 2. Offline Editing
-Each client can create, edit, and delete annotations independently with no network connection. Changes are tracked locally and queued for sync.
+## Demo
 
-### 3. Peer Sync
-Two clients connect over localhost (plain TCP via tokio) and exchange their full state. After syncing, both clients converge to identical state. No reconnection handling is required for the MVP.
+![Demo of spatial annotation sync](docs/assets/demo.gif)
 
-### 4. Convergence Verification
-Property-based tests assert that any two clients always reach the same final state regardless of the order operations are applied or received.
 
-## User Stories
-### Scenario 1: Concurrent Edits to Coordinates
-Alice and Bob both run the app as separate processes. While offline, Alice moves an annotation to (1, 2, 3) and Bob moves the same annotation to (4, 5, 6). When they reconnect and sync, both clients converge to (4, 5, 6) because Bob's write carried a later timestamp (Last Write Wins).
+## Features
 
-### Scenario 2: Delete vs. Edit Conflict
-Alice deletes an annotation at T=10 while Bob edits the same annotation at T=8, both while offline. When they sync, the annotation is deleted on both clients because Alice's delete has the later timestamp. If Bob's edit had occurred at T=12, the annotation would survive with Bob's content.
+- Create, edit, move, and delete spatial annotations independently on two peers, fully offline
+- Peer-to-peer sync over plain TCP — no server, just reconnect and both sides converge automatically
+- Last-Write-Wins conflict resolution applied per field (coordinate and text resolve independently), including deletes
+- Property-based tests (via `proptest`) that prove convergence holds under arbitrary operation orderings — commutativity, associativity, and idempotence of merge
 
-## Scope & Constraints
-### In Scope
-- LWW register-based CRDT for annotation state (coordinates, content)
-- Last Write Wins conflict resolution across all fields, including deletes
-- Two-peer sync over plain TCP on localhost
-- In-memory state only (no disk persistence)
-- CLI demo harness showing two processes syncing
-- Property-based convergence tests via proptest
-- README and demo gif
+## Getting Started
 
-### Out of Scope
-- Collaborative text editing within an annotation (e.g., RGA/LSEQ)
-- More than 2 peers syncing simultaneously
-- Authentication or security on the sync connection
-- Disk persistence
-- Reconnection handling or fault tolerance
-- Real network deployment (localhost only)
+### Prerequisites
+- Rust (2024 edition toolchain — install via [rustup](https://rustup.rs))
 
-### External Dependencies
-- tokio — async runtime and TCP transport
-- proptest — property-based testing for convergence verification
+### Build
+```sh
+cargo build
+```
+
+### Run two peers
+Open two terminals:
+```sh
+# terminal 1
+cargo run -- --peer-id 1
+
+# terminal 2
+cargo run -- --peer-id 2
+```
+Peer 1 listens on `127.0.0.1:3000`, peer 2 on `127.0.0.1:3001`. Both start seeded with the same three annotations so you can see them diverge and reconverge.
+
+## CLI Commands
+
+| Command | Syntax | Notes |
+|---|---|---|
+| `list` | `list` | Show all annotations, including tombstoned (deleted) ones |
+| `add` | `add <id> <coord> <text>` | e.g. `add 4 (1,2) "New annotation"` |
+| `edit` | `edit <id> <text>` | Full-replace of the text field |
+| `move` | `move <id> <coord>` | Full-replace of the coordinate |
+| `delete` | `delete <id>` | Tombstones the annotation — fields are cleared, not removed from history |
+| `sync` | `sync <host:port>` | Connects to a peer, exchanges state, and merges — e.g. `sync 127.0.0.1:3001` |
+| `exit` | `exit` | Quit |
+
+Coordinates are `(x,y)` — write them with **no space** after the comma, or quote the whole thing (`"(1, 2)"`), since a bare space breaks tokenization. Multi-word text needs quotes too: `add 4 (1,2) "hello world"`.
+
+## How It Works
+
+Each annotation's coordinate and text are independent [LWW registers](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#LWW-Element-Set_(Last-Write-Wins-Element-Set)): every write carries a timestamp, and on merge, the register with the later timestamp wins. A delete isn't a special operation — it's a write that clears both fields — so it's resolved by the same timestamp comparison as any edit, with no extra logic needed.
+
+**Concurrent edits:** Alice moves an annotation to `(1,2)` while Bob moves it to `(4,5)`, both offline. Whoever's write has the later timestamp wins after sync, and both peers converge to that coordinate.
+
+**Delete vs. edit:** Alice deletes an annotation while Bob edits it, both offline and unaware of each other's change. After sync, whichever operation is chronologically later wins, deterministically, with no manual conflict resolution required.
+
+Sync itself is a full-state exchange: each peer serializes its whole environment as JSON over a length-prefixed TCP frame and merges whatever it receives.
+
+## Known Limitations
+
+Deliberate scope cuts for a demo project, not oversights:
+
+- **No partial field updates** — `edit`/`move` always full-replace the field; there's no "update just one nested property" support
+- **No tombstone garbage collection** — deleted annotations stay in memory forever as tombstones
+- **JSON wire format** — `serde_json` was chosen for readability over a compact binary format like `postcard`/`bincode`, which would be the production choice
+- **Two peers only, localhost only** — no discovery, no auth, no real network deployment
+- **No persistence** — state is in-memory only; restarting a peer resets it to the seed data
+
+## Testing
+
+```sh
+cargo test
+```
+
+Includes unit tests for the CRDT merge logic, plus `proptest`-based property tests (`tests/convergence.rs`) that generate arbitrary sequences of create/update/delete operations across two or three peers and assert merge is commutative, associative, and idempotent regardless of operation order.
+
+## License
+
+[MIT](LICENSE)
